@@ -65,6 +65,8 @@ For updates, run `git pull --ff-only` and `docker compose up -d --build`. The `d
 
 Hostinger offers Node hosting on supported Business/Cloud plans. Use **Node 24**, install `npm ci`, build `npm run build`, and start `npm start`, with the application's assigned `PORT`. **This version needs a guaranteed persistent database path outside replaced deployments.** If the plan does not provide one, deploy the supplied VPS configuration or migrate the persistence layer to Hostinger MySQL/external managed storage first. A redeployed ephemeral SQLite path is not production-safe. Do not upload this as a frontend-only project.
 
+In Hostinger's Express build/output settings, set the entry file to **`server/app.mjs`** and the project root to **`./`**. There is no generated `dist` directory. The build validates source files without starting the server, so a successful build does not verify the entry file, production environment variables, or database permissions. Check runtime logs for startup failures; `/api/health` returns JSON when the application is running.
+
 ## Accounts to configure before live launch
 
 ### 1. Google login and Gmail
