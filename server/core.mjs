@@ -30,7 +30,7 @@ export function reserveCampaign(userId, draftIds, campaignKey, reviewed) {
     if(!user.address || !user.name) fail('Complete your sender name and business mailing address in Settings before sending.');
     const mailbox=get('SELECT * FROM mailboxes WHERE user_id=?',userId);
     if(!mailbox) fail('Connect your email account before sending.');
-    if(!reviewed||!Array.isArray(reviewed.drafts)||reviewed.drafts.length!==draftIds.length||reviewed.mailboxEmail!==mailbox.email||reviewed.userName!==user.name||reviewed.company!==user.company||reviewed.address!==user.address) fail('Your sender details changed. Refresh and review this campaign again.',409);
+    if(!reviewed||!Array.isArray(reviewed.drafts)||reviewed.drafts.length!==draftIds.length||reviewed.mailboxEmail!==mailbox.email||reviewed.userName!==user.name||reviewed.company!==user.company||reviewed.address!==user.address||reviewed.logo!==(user.logo||'')||reviewed.avatar!==(user.avatar||'')) fail('Your sender details changed. Refresh and review this campaign again.',409);
     const available=usage(user); if(draftIds.length>available.remaining) fail('This campaign exceeds your remaining send allowance.',409);
     const jobs=draftIds.map(draftId=>{
       const d=get('SELECT d.*,p.email,p.reviewed FROM drafts d JOIN prospects p ON p.id=d.prospect_id WHERE d.id=? AND d.user_id=? AND p.user_id=?',draftId,userId,userId);
@@ -41,7 +41,7 @@ export function reserveCampaign(userId, draftIds, campaignKey, reviewed) {
       if(get("SELECT id FROM sends WHERE user_id=? AND domain_id=? AND recipient=? AND status IN ('queued','sending','sent','unknown')",userId,d.domain_id,d.email)) fail('This domain has already been queued or sent to one of these buyers.');
       const job={id:id(),...d}; job.id=id(); return job;
     });
-    for(const j of jobs) run("INSERT INTO sends (id,user_id,domain_id,prospect_id,recipient,subject,body,status,reserved_at,campaign_key,sender_name,sender_company,sender_address,mailbox_email) VALUES (?,?,?,?,?,?,?,'queued',?,?,?,?,?,?)",j.id,userId,j.domain_id,j.prospect_id,j.email,j.subject,j.body,now(),campaignKey,user.name,user.company,user.address,mailbox.email);
+    for(const j of jobs) run("INSERT INTO sends (id,user_id,domain_id,prospect_id,recipient,subject,body,status,reserved_at,campaign_key,sender_name,sender_company,sender_address,mailbox_email,sender_logo,sender_avatar) VALUES (?,?,?,?,?,?,?,'queued',?,?,?,?,?,?,?,?)",j.id,userId,j.domain_id,j.prospect_id,j.email,j.subject,j.body,now(),campaignKey,user.name,user.company,user.address,mailbox.email,user.logo||'',user.avatar||'');
     return jobs.map(j=>({id:j.id,status:'queued'}));
   });
 }

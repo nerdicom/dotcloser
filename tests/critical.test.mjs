@@ -8,7 +8,8 @@ const {db,run,get,all}=await import('../server/db.mjs');
 const {id,now,usage,reserveCampaign:reserve,seal,unseal,hash,unsubscribeToken,decodeUnsubscribe}=await import('../server/core.mjs');
 const {processQueue}=await import('../server/worker.mjs');
 const {app}=await import('../server/application.mjs');
-function snapshot(userId,draftIds){const u=get('SELECT * FROM users WHERE id=?',userId);return {userName:u.name,company:u.company,address:u.address,mailboxEmail:get('SELECT email FROM mailboxes WHERE user_id=?',userId)?.email,drafts:draftIds.map(id=>{const d=get('SELECT d.*,p.email FROM drafts d JOIN prospects p ON p.id=d.prospect_id WHERE d.id=?',id);return {id,subject:d?.subject,body:d?.body,recipient:d?.email};})};}
+const {imageData,emailHTML}=await import('../server/branding.mjs');
+function snapshot(userId,draftIds){const u=get('SELECT * FROM users WHERE id=?',userId);return {userName:u.name,company:u.company,address:u.address,logo:u.logo||'',avatar:u.avatar||'',mailboxEmail:get('SELECT email FROM mailboxes WHERE user_id=?',userId)?.email,drafts:draftIds.map(id=>{const d=get('SELECT d.*,p.email FROM drafts d JOIN prospects p ON p.id=d.prospect_id WHERE d.id=?',id);return {id,subject:d?.subject,body:d?.body,recipient:d?.email};})};}
 function reserveCampaign(userId,ids,key){return reserve(userId,ids,key,snapshot(userId,ids));}
 function fixture(count=12,plan='trial'){
  const u=id();run('INSERT INTO users (id,name,email,address,created_at,trial_end,plan,paid_until,subscription_id) VALUES (?,?,?,?,?,?,?,?,?)',u,'Test Seller',u+'@example.com','123 Test St, City, US',now(),new Date(Date.now()+604800000).toISOString(),plan,plan==='standard'?new Date(Date.now()+2592000000).toISOString():null,plan==='standard'?'sub_'+u:null);
@@ -44,3 +45,14 @@ test('authenticated endpoints enforce sessions, CSRF, tenant isolation, and canc
 
 test('stale review cannot send changed recipients or messages',()=>{const f=fixture(1);const reviewed=snapshot(f.user.id,f.drafts);run('UPDATE drafts SET body=? WHERE id=?','Changed after review',f.drafts[0]);assert.throws(()=>reserve(f.user.id,f.drafts,id(),reviewed),/changed after review/);assert.equal(usage(f.user).used,0);const latest=snapshot(f.user.id,f.drafts);run('UPDATE prospects SET email=? WHERE user_id=?','different@business.com',f.user.id);assert.throws(()=>reserve(f.user.id,f.drafts,id(),latest),/changed after review/);});
 test('failed upgrade retains original trial; a former paid plan never restarts it',()=>{const f=fixture(1);run("UPDATE users SET subscription_id='sub_incomplete',plan='expired' WHERE id=?",f.user.id);assert.equal(usage(get('SELECT * FROM users WHERE id=?',f.user.id)).plan,'trial');run('UPDATE users SET ever_paid=1 WHERE id=?',f.user.id);assert.equal(usage(get('SELECT * FROM users WHERE id=?',f.user.id)).plan,'expired');});
+
+test('seller branding is validated and queued with the reviewed campaign',()=>{
+ const f=fixture(1);
+ const png='data:image/png;base64,'+Buffer.from([137,80,78,71,13,10,26,10,0,0,0,0]).toString('base64');
+ assert.equal(imageData(png,'logo'),png);assert.throws(()=>imageData('data:image/svg+xml;base64,PHN2Zz4=','logo'));
+ run('UPDATE users SET logo=? WHERE id=?',png,f.user.id);const reviewed=snapshot(f.user.id,f.drafts);
+ run('UPDATE users SET logo=? WHERE id=?','',f.user.id);assert.throws(()=>reserve(f.user.id,f.drafts,id(),reviewed),/sender details changed/);
+ run('UPDATE users SET logo=? WHERE id=?',png,f.user.id);const [job]=reserve(f.user.id,f.drafts,id(),reviewed);
+ assert.equal(get('SELECT sender_logo FROM sends WHERE id=?',job.id).sender_logo,png);
+ assert.match(emailHTML('<hello>',{name:'Seller',company:'Company',address:'Street',logo:png},'https://example.com/unsubscribe'),/&lt;hello&gt;/);
+});

@@ -25,6 +25,12 @@ CREATE INDEX IF NOT EXISTS idx_sends_user_status ON sends(user_id,status);
 CREATE INDEX IF NOT EXISTS idx_sends_status_reserved ON sends(status,reserved_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_sends_active_recipient ON sends(user_id,domain_id,recipient) WHERE status IN ('queued','sending','sent','unknown');
 PRAGMA optimize;`);
+for (const column of ['logo','avatar']) {
+  if (!db.prepare('PRAGMA table_info(users)').all().some(row=>row.name===column)) db.exec("ALTER TABLE users ADD COLUMN "+column+" TEXT DEFAULT ''");
+}
+for (const column of ['sender_logo','sender_avatar']) {
+  if (!db.prepare('PRAGMA table_info(sends)').all().some(row=>row.name===column)) db.exec("ALTER TABLE sends ADD COLUMN "+column+" TEXT DEFAULT ''");
+}
 export const get = (sql, ...params) => db.prepare(sql).get(...params);
 export const all = (sql, ...params) => db.prepare(sql).all(...params);
 export const run = (sql, ...params) => db.prepare(sql).run(...params);

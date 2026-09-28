@@ -4,6 +4,7 @@ import Stripe from 'stripe';
 import { config } from './config.mjs';
 import { get, run } from './db.mjs';
 import { fail, now, seal, unseal, email, unsubscribeToken } from './core.mjs';
+import { imageAttachment, emailHTML } from './branding.mjs';
 const env=process.env;
 export const stripe=env.STRIPE_SECRET_KEY?new Stripe(env.STRIPE_SECRET_KEY):null;
 const meta=env.FACEBOOK_API_VERSION||'v25.0';
@@ -45,12 +46,14 @@ export async function sendEmail(mailbox,user,job) {
  const access=await mailboxToken(mailbox);
  const unsubscribe=config.origin+'/unsubscribe/'+unsubscribeToken(user.id,job.recipient);
  const body=job.body+'\n\n—\n'+user.name+(user.company?' · '+user.company:'')+'\n'+user.address+'\nNo more domain offers: '+unsubscribe;
+ const attachments=[imageAttachment(user.logo,'logo'),imageAttachment(user.avatar,'avatar')].filter(Boolean);
+ const html=emailHTML(job.body,user,unsubscribe);
  let endpoint,payload;
  if(mailbox.provider==='google'){
-  const raw=await new MailComposer({from:{name:user.name,address:mailbox.email},to:job.recipient,subject:job.subject,text:body,messageId:job.id+'@'+new URL(config.origin).hostname,headers:{'List-Unsubscribe':'<'+unsubscribe+'>','List-Unsubscribe-Post':'List-Unsubscribe=One-Click'}}).compile().build();
+  const raw=await new MailComposer({from:{name:user.name,address:mailbox.email},to:job.recipient,subject:job.subject,text:body,html,attachments,messageId:job.id+'@'+new URL(config.origin).hostname,headers:{'List-Unsubscribe':'<'+unsubscribe+'>','List-Unsubscribe-Post':'List-Unsubscribe=One-Click'}}).compile().build();
   endpoint='https://gmail.googleapis.com/gmail/v1/users/me/messages/send';payload={raw:raw.toString('base64url')};
  }else if(mailbox.provider==='microsoft'){
-  endpoint='https://graph.microsoft.com/v1.0/me/sendMail';payload={message:{subject:job.subject,body:{contentType:'Text',content:body},toRecipients:[{emailAddress:{address:job.recipient}}],internetMessageHeaders:[{name:'X-DotCloser-Message-ID',value:job.id}]},saveToSentItems:true};
+  endpoint='https://graph.microsoft.com/v1.0/me/sendMail';payload={message:{subject:job.subject,body:{contentType:'HTML',content:html},attachments:attachments.map(a=>({'@odata.type':'#microsoft.graph.fileAttachment',name:a.filename,contentType:a.contentType,contentBytes:a.content.toString('base64'),contentId:a.cid,isInline:true})),toRecipients:[{emailAddress:{address:job.recipient}}],internetMessageHeaders:[{name:'X-DotCloser-Message-ID',value:job.id}]},saveToSentItems:true};
  }else fail('Unsupported email connection.');
  let response;try{response=await fetch(endpoint,{method:'POST',headers:{Authorization:'Bearer '+access,'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(25000),redirect:'error'});}catch{const e=new Error('Provider response was interrupted. Check Sent in your mailbox before taking further action.');e.unknown=true;throw e;}
  if(!response.ok){const e=new Error(response.status===429?'Your email provider is rate limiting sends.':response.status===401||response.status===403?'Reconnect your email account and check sending permissions.':'The email provider rejected this send.');e.unknown=response.status>=500;throw e;}

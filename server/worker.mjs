@@ -13,7 +13,7 @@ export async function processQueue(sender=sendEmail) {
    // Queued reservations remain counted across midnight; accepted sends count on the actual send day.
    const sentToday=get("SELECT count(*) n FROM sends WHERE user_id=? AND status IN ('sent','sending','unknown') AND substr(coalesce(sent_at,reserved_at),1,10)=?",j.user_id,now().slice(0,10)).n;
    if(usage(u).plan==='standard'&&sentToday>=config.dailyLimit)return;
-   const claimed=run("UPDATE sends SET status='sending',reserved_at=? WHERE id=? AND status='queued'",now(),j.id);return claimed.changes?{...j,user:{...u,name:j.sender_name,company:j.sender_company,address:j.sender_address},mailbox:m}:null;
+   const claimed=run("UPDATE sends SET status='sending',reserved_at=? WHERE id=? AND status='queued'",now(),j.id);return claimed.changes?{...j,user:{...u,name:j.sender_name,company:j.sender_company,address:j.sender_address,logo:j.sender_logo,avatar:j.sender_avatar},mailbox:m}:null;
   });
   if(!job)return;
   try{const providerId=await sender(job.mailbox,job.user,job);run("UPDATE sends SET status='sent',sent_at=?,provider_id=? WHERE id=?",now(),providerId,job.id);}

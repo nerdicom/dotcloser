@@ -9,6 +9,7 @@ import { id, now, hash, random, fail, clean, email, domain, seal, unseal, usage,
 import { providers, ready, authorizeURL, exchange, stripe, syncSubscription } from './integrations.mjs';
 import { research, contactSearch } from './research.mjs';
 import { startWorker } from './worker.mjs';
+import { imageData } from './branding.mjs';
 export const app=express();
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 app.disable('x-powered-by');app.set('trust proxy',1);
@@ -42,7 +43,7 @@ app.use('/api',(req,res,next)=>{
 });
 let priceCache;
 async function priceInfo(){if(!stripe||!process.env.STRIPE_PRICE_ID)return null;if(priceCache?.expires>Date.now())return priceCache.value;try{const p=await stripe.prices.retrieve(process.env.STRIPE_PRICE_ID);if(!p.active||!p.recurring||p.recurring.interval!=='month')return null;const value={amount:p.unit_amount,currency:p.currency,interval:p.recurring.interval};priceCache={value,expires:Date.now()+300000};return value;}catch{return null;}}
-app.get('/api/session',async(req,res)=>res.json({user:req.user?{id:req.user.id,name:req.user.name,email:req.user.email,company:req.user.company,address:req.user.address}:null,csrf:req.session?.csrf,usage:req.user?usage(req.user):null,config:{demo:config.demo,google:ready('google'),facebook:ready('facebook'),microsoft:ready('microsoft'),mailEncryption:!!config.encryptionKey,trialDays:config.trialDays,trialLimit:config.trialLimit,dailyLimit:config.dailyLimit,billing:!!(stripe&&process.env.STRIPE_PRICE_ID&&process.env.STRIPE_WEBHOOK_SECRET),price:await priceInfo(),sources:{regcount:process.env.REGCOUNT_ENABLED==='true',dotdb:process.env.DOTDB_ENABLED==='true'&&!!process.env.DOTDB_API_KEY,hunter:!!process.env.HUNTER_API_KEY}}}));
+app.get('/api/session',async(req,res)=>res.json({user:req.user?{id:req.user.id,name:req.user.name,email:req.user.email,company:req.user.company,address:req.user.address,logo:req.user.logo||'',avatar:req.user.avatar||''}:null,csrf:req.session?.csrf,usage:req.user?usage(req.user):null,config:{demo:config.demo,google:ready('google'),facebook:ready('facebook'),microsoft:ready('microsoft'),mailEncryption:!!config.encryptionKey,trialDays:config.trialDays,trialLimit:config.trialLimit,dailyLimit:config.dailyLimit,billing:!!(stripe&&process.env.STRIPE_PRICE_ID&&process.env.STRIPE_WEBHOOK_SECRET),price:await priceInfo(),sources:{regcount:process.env.REGCOUNT_ENABLED==='true',dotdb:process.env.DOTDB_ENABLED==='true'&&!!process.env.DOTDB_API_KEY,hunter:!!process.env.HUNTER_API_KEY}}}));
 app.get('/api/health',(req,res)=>res.json({status:'ok',service:'dotcloser'}));
 app.get('/auth/:provider/start',authLimiter,(req,res,next)=>{try{
  const {provider}=req.params;const purpose=clean(req.query.purpose||'login');if(!providers[provider]||!['login','mail','link'].includes(purpose))fail('Unsupported sign-in request.');
@@ -82,7 +83,7 @@ app.get('/auth/:provider/callback',authLimiter,async(req,res)=>{try{
  }catch(e){res.redirect('/?auth_error='+encodeURIComponent(e.status&&e.status<500?e.message:'Sign-in could not be completed. Check the provider setup and try again.')+'#overview');}});
 app.post('/api/logout',auth,(req,res)=>{run('DELETE FROM sessions WHERE id=?',req.session.id);res.clearCookie('dc_session',{path:'/'});res.json({ok:true});});
 app.get('/api/workspace',auth,(req,res)=>res.json({domains:all('SELECT * FROM domains WHERE user_id=? ORDER BY created_at DESC',req.user.id),prospects:all('SELECT * FROM prospects WHERE user_id=? ORDER BY created_at DESC',req.user.id),drafts:all('SELECT * FROM drafts WHERE user_id=? ORDER BY updated_at DESC',req.user.id),sends:all('SELECT * FROM sends WHERE user_id=? ORDER BY reserved_at DESC LIMIT 500',req.user.id),mailbox:get('SELECT provider,email,updated_at FROM mailboxes WHERE user_id=?',req.user.id)||null,identities:all('SELECT provider FROM identities WHERE user_id=?',req.user.id),suppressionCount:get('SELECT count(*) n FROM suppressions WHERE user_id=?',req.user.id).n,usage:usage(req.user)}));
-app.patch('/api/profile',auth,(req,res)=>{const name=clean(req.body.name,100),address=clean(req.body.address,300),company=clean(req.body.company,150);if(!name||/[\r\n]/.test(name))fail('Enter your sender name on one line.');run('UPDATE users SET name=?,company=?,address=? WHERE id=?',name,company,address,req.user.id);res.json({ok:true});});
+app.patch('/api/profile',auth,(req,res)=>{const name=clean(req.body.name,100),address=clean(req.body.address,300),company=clean(req.body.company,150);if(!name||/[\r\n]/.test(name))fail('Enter your sender name on one line.');run('UPDATE users SET name=?,company=?,address=?,logo=?,avatar=? WHERE id=?',name,company,address,logo,avatar,req.user.id);res.json({ok:true});});
 app.delete('/api/mailbox',auth,(req,res)=>{transaction(()=>{run('DELETE FROM mailboxes WHERE user_id=?',req.user.id);run("UPDATE sends SET status='cancelled',error='Mailbox disconnected.' WHERE user_id=? AND status='queued'",req.user.id);});res.json({ok:true});});
 app.post('/api/domains',auth,(req,res)=>{
  const rows=req.body.domains;if(!Array.isArray(rows)||!rows.length||rows.length>500)fail('Add 1–500 domains at a time.');

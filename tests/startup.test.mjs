@@ -36,7 +36,7 @@ for(const entry of ['app.js','server/app.mjs'])for(const mode of ['direct','syml
    const base=`http://127.0.0.1:${port}`;
    const home=await fetch(base,{signal:AbortSignal.timeout(3000)});
    assert.equal(home.status,200);
-   assert.match(await home.text(),/Turn domains into deals/);
+   assert.match(await home.text(),/Automate domain sales outreach/);
    const health=await fetch(base+'/api/health',{signal:AbortSignal.timeout(3000)});
    assert.equal(health.status,200);
    assert.deepEqual(await health.json(),{status:'ok',service:'dotcloser'});
