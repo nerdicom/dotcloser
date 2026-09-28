@@ -1,0 +1,10 @@
+{
+  "name": "dotcloser",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "DotCloser — domain sales outreach workspace",
+  "engines": { "node": ">=24" },
+  "scripts": { "start": "node --env-file-if-exists=.env server/app.mjs", "dev": "node --watch --env-file-if-exists=.env server/app.mjs", "test": "node --test tests/*.test.mjs", "build": "node scripts/build.mjs" },
+  "dependencies": { "express": "5.2.1", "express-rate-limit": "8.2.1", "helmet": "8.1.0", "nodemailer": "10.0.11", "stripe": "22.6.2" }
+}

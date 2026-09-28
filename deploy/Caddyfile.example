@@ -1,0 +1,6 @@
+# Add this site block to the VPS's existing Caddy configuration.
+# Keep unrelated sites and reverse proxies unchanged.
+dotcloser.com, www.dotcloser.com {
+  reverse_proxy 127.0.0.1:3090
+  encode zstd gzip
+}

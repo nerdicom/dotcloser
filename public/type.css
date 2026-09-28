@@ -1,0 +1,2 @@
+/* System fonts keep the workspace fast and avoid external tracking requests. */
+:root{font-family:Inter,"Aptos","Segoe UI",Arial,sans-serif}
