@@ -7,7 +7,7 @@ process.env.NODE_ENV='test';
 const {db,run,get,all}=await import('../server/db.mjs');
 const {id,now,usage,reserveCampaign:reserve,seal,unseal,hash,unsubscribeToken,decodeUnsubscribe}=await import('../server/core.mjs');
 const {processQueue}=await import('../server/worker.mjs');
-const {app}=await import('../server/app.mjs');
+const {app}=await import('../server/application.mjs');
 function snapshot(userId,draftIds){const u=get('SELECT * FROM users WHERE id=?',userId);return {userName:u.name,company:u.company,address:u.address,mailboxEmail:get('SELECT email FROM mailboxes WHERE user_id=?',userId)?.email,drafts:draftIds.map(id=>{const d=get('SELECT d.*,p.email FROM drafts d JOIN prospects p ON p.id=d.prospect_id WHERE d.id=?',id);return {id,subject:d?.subject,body:d?.body,recipient:d?.email};})};}
 function reserveCampaign(userId,ids,key){return reserve(userId,ids,key,snapshot(userId,ids));}
 function fixture(count=12,plan='trial'){
