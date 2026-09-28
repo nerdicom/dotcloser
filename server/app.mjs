@@ -2,6 +2,7 @@ import express from 'express';
 import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
 import { fileURLToPath } from 'node:url';
+import { realpathSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { config } from './config.mjs';
 import { all, get, run, transaction } from './db.mjs';
@@ -122,4 +123,12 @@ app.post('/unsubscribe/:token',(req,res)=>{try{const [uid,em]=decodeUnsubscribe(
 app.use(express.static(resolve(root,'public'),{maxAge:config.production?'1h':0,etag:true}));
 app.get('/{*path}',(req,res)=>{if(req.path.startsWith('/api/'))return res.status(404).json({error:'Endpoint not found.'});res.sendFile(resolve(root,'public/index.html'));});
 app.use((error,req,res,next)=>{if(res.headersSent)return next(error);if(error.status>=400&&error.status<600)return res.status(error.status).json({error:error.message});if(error.code?.includes('CONSTRAINT'))return res.status(409).json({error:'This record already exists or is in use.'});console.error('Request failed:',error.name,error.code||'');res.status(500).json({error:'The request could not be completed. Please try again.'});});
-if(process.argv[1]===fileURLToPath(import.meta.url)){app.listen(config.port,'0.0.0.0',()=>console.log('DotCloser listening on '+config.port));startWorker();}
+export function startServer(){
+ const server=app.listen(config.port,'0.0.0.0',()=>{
+  console.log('DotCloser listening on '+server.address().port);
+  startWorker();
+ });
+ return server;
+}
+// Keep existing deployments using server/app.mjs working during the transition.
+if(process.argv[1]&&realpathSync(process.argv[1])===fileURLToPath(import.meta.url))startServer();
